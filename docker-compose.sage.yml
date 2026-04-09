@@ -1,0 +1,99 @@
+# =============================================================================
+# FalconEYE + SAGE Integration — Docker Compose
+# =============================================================================
+#
+# Runs the infrastructure FalconEYE needs for AI-powered security analysis
+# with persistent memory via SAGE.
+#
+# Services:
+#   ollama      — Shared LLM/embedding server (port 11434)
+#   ollama-init — One-shot model puller (runs once, then exits)
+#   sage        — SAGE persistent consensus-validated memory (port 8080)
+#
+# Start:
+#   docker compose -f docker-compose.sage.yml up -d
+#
+# FalconEYE runs on the host and connects to both services:
+#   - Ollama at http://localhost:11435
+#   - SAGE   at http://localhost:8090
+#
+# Run FalconEYE with SAGE integration:
+#   falconeye scan /path/to/code --sage
+#
+# Configure FalconEYE to use Docker Ollama:
+#   Set `llm.base_url: http://localhost:11435` in config.yaml
+#   Set `sage.base_url: http://localhost:8090` in config.yaml
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Ollama — Shared LLM and embedding inference server
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    # -------------------------------------------------------------------------
+    # GPU support (NVIDIA) — uncomment the block below to enable
+    # -------------------------------------------------------------------------
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # Ollama Init — Pull required models on first start (runs once, then exits)
+  # ---------------------------------------------------------------------------
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: >
+      sh -c '
+        echo "Pulling nomic-embed-text (SAGE embeddings, ~274MB)..."
+        ollama pull nomic-embed-text
+        echo "Embedding model ready."
+      '
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # SAGE — Persistent consensus-validated memory
+  # ---------------------------------------------------------------------------
+  sage:
+    image: ghcr.io/l33tdawg/sage:latest
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    ports:
+      - "8090:8080"
+    environment:
+      REST_ADDR: "0.0.0.0:8080"
+      OLLAMA_URL: "http://ollama:11434"
+      SAGE_EMBEDDING_PROVIDER: "ollama"
+    volumes:
+      - sage_data:/root/.sage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  sage_data:

@@ -11,6 +11,7 @@ from .commands import (
     index_command,
     review_command,
     scan_command,
+    feedback_command,
     info_command,
     config_command,
 )
@@ -165,6 +166,11 @@ def review(
         "--backend", "-b",
         help="LLM backend: ollama (default) or mlx (Apple Silicon)",
     ),
+    sage: bool = typer.Option(
+        False,
+        "--sage",
+        help="Enable SAGE persistent memory for historical context",
+    ),
 ):
     """
     Review a file or directory for security vulnerabilities.
@@ -187,6 +193,7 @@ def review(
         config_path=config,
         verbose=verbose,
         backend=backend,
+        sage=sage,
         console=console,
     )
 
@@ -243,6 +250,11 @@ def scan(
         "--backend", "-b",
         help="LLM backend: ollama (default) or mlx (Apple Silicon)",
     ),
+    sage: bool = typer.Option(
+        False,
+        "--sage",
+        help="Enable SAGE persistent memory for historical context",
+    ),
 ):
     """
     Index and review in one command.
@@ -280,6 +292,57 @@ def scan(
         config_path=config,
         verbose=verbose,
         backend=backend,
+        sage=sage,
+        console=console,
+    )
+
+
+@app.command(name="feedback")
+def feedback(
+    finding_id: str = typer.Argument(..., help="Finding UUID from scan results"),
+    valid: bool = typer.Option(
+        True,
+        "--valid/--invalid",
+        help="Mark as true positive (--valid) or false positive (--invalid)",
+    ),
+    severity: Optional[str] = typer.Option(
+        None,
+        "--severity",
+        help="Correct severity (critical/high/medium/low)",
+    ),
+    reason: str = typer.Option(
+        "",
+        "--reason", "-r",
+        help="Reason for feedback",
+    ),
+    config: Optional[str] = typer.Option(
+        None,
+        "--config", "-c",
+        help="Path to configuration file",
+    ),
+    sage_url: Optional[str] = typer.Option(
+        None,
+        "--sage-url",
+        help="SAGE API base URL override",
+    ),
+):
+    """
+    Submit feedback on a security finding.
+
+    Mark a finding as a true or false positive, optionally correcting severity.
+    Feedback is stored in SAGE persistent memory to improve future scans.
+
+    Usage:
+        falconeye feedback <finding-id> --invalid -r "Not exploitable"
+        falconeye feedback <finding-id> --valid --severity low -r "Low impact"
+    """
+    feedback_command(
+        finding_id=finding_id,
+        valid=valid,
+        severity=severity,
+        reason=reason,
+        config_path=config,
+        sage_url=sage_url,
         console=console,
     )
 

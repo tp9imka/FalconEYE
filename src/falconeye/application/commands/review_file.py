@@ -8,6 +8,7 @@ import time
 from ...domain.models.security import SecurityReview, SecurityFinding
 from ...domain.services.security_analyzer import SecurityAnalyzer
 from ...domain.services.context_assembler import ContextAssembler
+from ...domain.services.memory_service import MemoryService
 from ...infrastructure.logging import FalconEyeLogger
 
 
@@ -43,6 +44,7 @@ class ReviewFileHandler:
         self,
         security_analyzer: SecurityAnalyzer,
         context_assembler: ContextAssembler,
+        memory_service: Optional[MemoryService] = None,
     ):
         """
         Initialize handler.
@@ -50,9 +52,11 @@ class ReviewFileHandler:
         Args:
             security_analyzer: AI-powered security analyzer
             context_assembler: Context assembly for RAG
+            memory_service: Optional persistent memory service (e.g. SAGE)
         """
         self.security_analyzer = security_analyzer
         self.context_assembler = context_assembler
+        self.memory_service = memory_service
         self.logger = FalconEyeLogger.get_instance()
 
     async def handle(self, command: ReviewFileCommand) -> SecurityReview:
@@ -96,6 +100,66 @@ class ReviewFileHandler:
             analysis_type="review",
         )
 
+        # Enrich context with historical findings from SAGE
+        if self.memory_service:
+            try:
+                historical = await self.memory_service.recall_findings(
+                    file_path=str(command.file_path),
+                    language=command.language,
+                    project_id=str(command.file_path.parent),
+                )
+                if historical:
+                    history_text = "\n".join(
+                        f"- [{h.get('confidence', 0):.0%}] {h.get('content', '')}"
+                        for h in historical[:3]
+                    )
+                    if context.related_docs:
+                        context.related_docs += f"\n\n[Historical Security Findings]\n{history_text}"
+                    else:
+                        context.related_docs = f"[Historical Security Findings]\n{history_text}"
+            except Exception as e:
+                self.logger.warning(f"SAGE recall failed: {e}")
+
+        # Cross-project learning — recall patterns from other projects
+        if self.memory_service:
+            try:
+                patterns = await self.memory_service.recall_cross_project_patterns(
+                    language=command.language,
+                    vuln_type="security",
+                )
+                if patterns:
+                    pattern_text = "\n".join(
+                        f"- [{p.get('confidence', 0):.0%}] {p.get('content', '')}"
+                        for p in patterns[:3]
+                    )
+                    if context.related_docs:
+                        context.related_docs += (
+                            f"\n\n[Cross-Project Security Patterns]\n{pattern_text}"
+                        )
+                    else:
+                        context.related_docs = (
+                            f"[Cross-Project Security Patterns]\n{pattern_text}"
+                        )
+            except Exception as e:
+                self.logger.warning(f"SAGE cross-project recall failed: {e}")
+
+        # Also recall severity feedback from past user corrections
+        if self.memory_service:
+            try:
+                feedback = await self.memory_service.recall_feedback(
+                    file_path=str(command.file_path),
+                )
+                if feedback:
+                    fb_text = "\n".join(
+                        f"- {f.get('content', '')}" for f in feedback[:3]
+                    )
+                    if context.related_docs:
+                        context.related_docs += f"\n\n[User Feedback on Past Findings]\n{fb_text}"
+                    else:
+                        context.related_docs = f"[User Feedback on Past Findings]\n{fb_text}"
+            except Exception as e:
+                self.logger.warning(f"SAGE feedback recall failed: {e}")
+
         # AI analysis
         findings = await self.security_analyzer.analyze_code(
             context=context,
@@ -128,6 +192,21 @@ class ReviewFileHandler:
 
         review.files_analyzed = 1
         review.complete()
+
+        # Store findings in SAGE for future reference
+        if self.memory_service:
+            try:
+                await self.memory_service.store_review(
+                    review=review,
+                    project_id=str(command.file_path.parent),
+                )
+                await self.memory_service.store_scan_reflection(
+                    review=review,
+                    project_id=str(command.file_path.parent),
+                    language=command.language,
+                )
+            except Exception as e:
+                self.logger.warning(f"SAGE store failed: {e}")
 
         # Calculate duration
         duration = time.time() - start_time

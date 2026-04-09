@@ -399,6 +399,7 @@ def review_command(
     config_path: Optional[str],
     verbose: bool,
     backend: Optional[str] = None,
+    sage: bool = False,
     console: Console = None,
 ):
     """
@@ -415,6 +416,7 @@ def review_command(
         config_path: Config file path
         verbose: Verbose output
         backend: LLM backend override
+        sage: Enable SAGE persistent memory
         console: Rich console
     """
     if verbose:
@@ -424,7 +426,7 @@ def review_command(
         ))
 
     # Create DI container
-    container = DIContainer.create(config_path, backend_override=backend)
+    container = DIContainer.create(config_path, backend_override=backend, sage_override=sage)
 
     # Configure logger verbosity
     _configure_logger_verbosity(container, verbose)
@@ -972,6 +974,7 @@ def scan_command(
     config_path: Optional[str],
     verbose: bool,
     backend: Optional[str] = None,
+    sage: bool = False,
     console: Console = None,
 ):
     """
@@ -988,6 +991,7 @@ def scan_command(
         config_path: Config file path
         verbose: Verbose output
         backend: LLM backend override
+        sage: Enable SAGE persistent memory
         console: Rich console
     """
     console.print(Panel.fit(
@@ -1024,8 +1028,76 @@ def scan_command(
         config_path=config_path,
         verbose=verbose,
         backend=backend,
+        sage=sage,
         console=console,
     )
+
+
+def feedback_command(
+    finding_id: str,
+    valid: bool,
+    severity: Optional[str],
+    reason: str,
+    config_path: Optional[str],
+    sage_url: Optional[str],
+    console: Console,
+):
+    """
+    Execute feedback command.
+
+    Records user feedback on a security finding in SAGE persistent memory.
+
+    Args:
+        finding_id: UUID of the finding
+        valid: Whether the finding is a true positive
+        severity: Optional severity correction (critical/high/medium/low)
+        reason: Reason for feedback
+        config_path: Config file path
+        sage_url: Optional SAGE base URL override
+        console: Rich console
+    """
+    # Build reason string with optional severity correction
+    reason_parts = []
+    if severity:
+        reason_parts.append(f"Severity correction: -> {severity}.")
+    if reason:
+        reason_parts.append(reason)
+    full_reason = " ".join(reason_parts)
+
+    verdict = "TRUE POSITIVE" if valid else "FALSE POSITIVE"
+
+    # Create DI container with SAGE enabled
+    try:
+        container = DIContainer.create(config_path, sage_override=True)
+    except Exception as e:
+        console.print(f"[red]Error initializing FalconEYE: {e}[/red]")
+        raise SystemExit(1)
+
+    # Override SAGE URL if provided
+    if sage_url and container.memory_service:
+        container.memory_service._base_url = sage_url
+        container.memory_service._client = None  # Force reconnect
+
+    if not container.memory_service:
+        console.print("[red]SAGE memory service is not available.[/red]")
+        console.print("[dim]Ensure SAGE is running and reachable. Use --sage-url to specify a custom URL.[/dim]")
+        raise SystemExit(1)
+
+    # Record the feedback
+    try:
+        asyncio.run(container.memory_service.record_feedback(
+            finding_id=finding_id,
+            is_valid=valid,
+            reason=full_reason,
+        ))
+        console.print(f"[green]Feedback recorded for finding {finding_id}: {verdict}[/green]")
+        if severity:
+            console.print(f"[cyan]Severity correction: -> {severity}[/cyan]")
+        if reason:
+            console.print(f"[dim]Reason: {reason}[/dim]")
+    except Exception as e:
+        console.print(f"[red]Failed to record feedback: {e}[/red]")
+        raise SystemExit(1)
 
 
 def info_command(config_path: Optional[str], console: Console):

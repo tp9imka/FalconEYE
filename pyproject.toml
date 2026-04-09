@@ -45,13 +45,18 @@ mlx = [
   "mlx-lm>=0.21.0"
 ]
 
+sage = [
+  "sage-agent-sdk>=5.4.0",
+]
+
 ollama = [
   "ollama>=0.3.0"
 ]
 
 dev = [
   "falconeye[test]",
-  "falconeye[lint]"
+  "falconeye[lint]",
+  "falconeye[sage]"
 ]
 
 [tool.pytest.ini_options]
