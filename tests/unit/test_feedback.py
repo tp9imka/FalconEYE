@@ -349,7 +349,8 @@ class TestFeedbackInjectedIntoContext:
         analyze_call = mock_analyzer.analyze_code.call_args
         ctx_used = analyze_call.kwargs["context"]
         assert ctx_used.related_docs is not None
-        assert "User Feedback on Past Findings" in ctx_used.related_docs
+        assert "BEGIN USER FEEDBACK" in ctx_used.related_docs
+        assert "END USER FEEDBACK" in ctx_used.related_docs
         assert "FALSE POSITIVE" in ctx_used.related_docs
 
     @patch("falconeye.application.commands.review_file.FalconEyeLogger")
@@ -452,4 +453,5 @@ class TestFeedbackInjectedIntoContext:
 
         ctx_used = mock_analyzer.analyze_code.call_args.kwargs["context"]
         assert "Security policy..." in ctx_used.related_docs
-        assert "User Feedback on Past Findings" in ctx_used.related_docs
+        assert "BEGIN USER FEEDBACK" in ctx_used.related_docs
+        assert "END USER FEEDBACK" in ctx_used.related_docs
