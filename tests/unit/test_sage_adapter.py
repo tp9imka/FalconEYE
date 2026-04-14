@@ -149,16 +149,15 @@ class TestStoreReview:
         last_call = mock_client.propose.call_args_list[-1]
         assert last_call.kwargs["domain_tag"] == "falconeye-projects"
 
-    async def test_store_review_confidence_mapping(self, sage_env, sample_review):
-        """CRITICAL finding -> 0.95 confidence, MEDIUM -> 0.80."""
+    async def test_store_review_uses_flat_confidence(self, sage_env, sample_review):
+        """All findings use the same default confidence (0.85) regardless of severity."""
         adapter, mock_client, _ = sage_env
         await adapter.store_review(sample_review, project_id="proj")
 
         calls = mock_client.propose.call_args_list
-        # First finding is CRITICAL
-        assert calls[0].kwargs["confidence"] == 0.95
-        # Second finding is MEDIUM
-        assert calls[1].kwargs["confidence"] == 0.80
+        # Both findings should use the flat default confidence
+        assert calls[0].kwargs["confidence"] == 0.85
+        assert calls[1].kwargs["confidence"] == 0.85
 
     async def test_store_review_empty_findings(self, sage_env, empty_review):
         """No findings -> propose() should not be called."""
@@ -347,52 +346,14 @@ class TestRecordFeedback:
 
 
 # ---------------------------------------------------------------------------
-# Severity -> confidence mapping tests
+# Default confidence constant tests
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-class TestSeverityConfidenceMapping:
+class TestDefaultFindingConfidence:
 
-    def test_severity_confidence_mapping(self, sage_env):
-        """Verify the _SEVERITY_CONFIDENCE dict has correct values."""
-        import sys
-        import importlib
-
-        # We need to read the mapping from the adapter module.
-        # Re-import with mocked sage_sdk to access it.
-        patches, mock_cls, mock_id, mock_mt = _patch_sage_sdk()
-        originals = {}
-        for mod_name, mod_mock in patches.items():
-            originals[mod_name] = sys.modules.get(mod_name)
-            sys.modules[mod_name] = mod_mock
-
-        mod_path = "falconeye.infrastructure.memory.sage_adapter"
-        if mod_path in sys.modules:
-            importlib.reload(sys.modules[mod_path])
-        from falconeye.infrastructure.memory.sage_adapter import _SEVERITY_CONFIDENCE
-
-        # Restore
-        for mod_name, orig in originals.items():
-            if orig is None:
-                sys.modules.pop(mod_name, None)
-            else:
-                sys.modules[mod_name] = orig
-
-        expected = {
-            Severity.CRITICAL: 0.95,
-            Severity.HIGH: 0.90,
-            Severity.MEDIUM: 0.80,
-            Severity.LOW: 0.70,
-            Severity.INFO: 0.60,
-        }
-
-        for severity, expected_confidence in expected.items():
-            assert _SEVERITY_CONFIDENCE[severity] == expected_confidence, (
-                f"{severity.value} should map to {expected_confidence}"
-            )
-
-    def test_all_severities_mapped(self, sage_env):
-        """Every Severity enum member should have a mapping."""
+    def test_default_confidence_is_085(self, sage_env):
+        """Verify the flat default confidence constant."""
         import sys
         import importlib
 
@@ -405,7 +366,7 @@ class TestSeverityConfidenceMapping:
         mod_path = "falconeye.infrastructure.memory.sage_adapter"
         if mod_path in sys.modules:
             importlib.reload(sys.modules[mod_path])
-        from falconeye.infrastructure.memory.sage_adapter import _SEVERITY_CONFIDENCE
+        from falconeye.infrastructure.memory.sage_adapter import _DEFAULT_FINDING_CONFIDENCE
 
         for mod_name, orig in originals.items():
             if orig is None:
@@ -413,7 +374,4 @@ class TestSeverityConfidenceMapping:
             else:
                 sys.modules[mod_name] = orig
 
-        for severity in Severity:
-            assert severity in _SEVERITY_CONFIDENCE, (
-                f"Severity.{severity.name} is missing from _SEVERITY_CONFIDENCE"
-            )
+        assert _DEFAULT_FINDING_CONFIDENCE == 0.85

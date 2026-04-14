@@ -348,6 +348,10 @@ class SAGEConfig(BaseModel):
     timeout: float = Field(default=15.0, ge=1.0, le=120.0, description="API request timeout")
     store_findings: bool = Field(default=True, description="Store scan findings in SAGE")
     recall_context: bool = Field(default=True, description="Recall historical context before analysis")
+    store_throttle_seconds: float = Field(
+        default=0.5, ge=0.0, le=10.0,
+        description="Delay between memory proposals (0 for multi-node deployments)",
+    )
 
 
 class FalconEyeConfig(BaseModel):

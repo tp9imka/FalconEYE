@@ -14,14 +14,10 @@ from ...domain.services.memory_service import MemoryService
 from ..logging import FalconEyeLogger
 
 
-# Severity → confidence mapping
-_SEVERITY_CONFIDENCE = {
-    Severity.CRITICAL: 0.95,
-    Severity.HIGH: 0.90,
-    Severity.MEDIUM: 0.80,
-    Severity.LOW: 0.70,
-    Severity.INFO: 0.60,
-}
+# Default confidence for all findings stored in SAGE.
+# Confidence means "how sure are we this memory is true" — it is orthogonal
+# to severity.  Severity is already encoded in the memory content string.
+_DEFAULT_FINDING_CONFIDENCE = 0.85
 
 
 class SAGEMemoryAdapter(MemoryService):
@@ -33,9 +29,9 @@ class SAGEMemoryAdapter(MemoryService):
     historical analysis and reducing false positives over time.
 
     Uses the sage-agent-sdk for all API interactions.
-    The client is lazily created on first use to avoid event-loop
-    lifetime issues (the DI container may health-check in a separate
-    loop from the one used during analysis).
+    The client is lazily created on first use and re-created when the
+    running event loop changes (the pre-scan health probe and the scan
+    pipeline may each call ``asyncio.run()`` independently).
     """
 
     def __init__(
@@ -43,27 +39,39 @@ class SAGEMemoryAdapter(MemoryService):
         base_url: str = "http://localhost:8090",
         identity_path: Optional[str] = None,
         timeout: float = 15.0,
+        store_throttle_seconds: float = 0.5,
     ):
         """
         Initialize SAGE memory adapter.
 
         Args:
             base_url: SAGE API base URL
-            identity_path: Path to SAGE agent key file (defaults to ~/.sage/agent.key)
+            identity_path: Path to SAGE agent key file.  When *None* the
+                adapter checks ``~/.sage/agent.key``; if that file does not
+                exist it falls back to ``AgentIdentity.default()``.
             timeout: API request timeout in seconds
+            store_throttle_seconds: Delay between proposals to avoid
+                overwhelming single-node BFT consensus.  Set to 0 for
+                multi-node deployments.
         """
         self.logger = FalconEyeLogger.get_instance()
         self._base_url = base_url
         self._timeout = timeout
+        self._store_throttle = store_throttle_seconds
 
-        # Load or create agent identity
-        if identity_path and Path(identity_path).exists():
-            self._identity = AgentIdentity.from_file(identity_path)
+        # Load or create agent identity — check the documented default
+        # path (~/.sage/agent.key) when no explicit path is supplied.
+        resolved_path = identity_path or str(Path.home() / ".sage" / "agent.key")
+        if Path(resolved_path).exists():
+            self._identity = AgentIdentity.from_file(resolved_path)
         else:
             self._identity = AgentIdentity.default()
 
-        # Client is created lazily per event-loop
+        # Client is created lazily and re-created when the event loop changes
+        # (the pre-scan health probe may run in a different asyncio.run() than
+        # the scan pipeline).
         self._client: Optional[AsyncSageClient] = None
+        self._client_loop: Optional[asyncio.AbstractEventLoop] = None
 
         self.logger.info(
             "SAGE memory adapter initialized",
@@ -71,13 +79,20 @@ class SAGEMemoryAdapter(MemoryService):
         )
 
     def _get_client(self) -> AsyncSageClient:
-        """Get or create an AsyncSageClient bound to the current event loop."""
-        if self._client is None:
+        """Get or create an AsyncSageClient bound to the current event loop.
+
+        Re-creates the client when the running loop differs from the one
+        the client was originally constructed in (e.g. pre-scan health probe
+        vs. the scan pipeline each call ``asyncio.run()`` independently).
+        """
+        loop = asyncio.get_running_loop()
+        if self._client is None or self._client_loop is not loop:
             self._client = AsyncSageClient(
                 base_url=self._base_url,
                 identity=self._identity,
                 timeout=self._timeout,
             )
+            self._client_loop = loop
         return self._client
 
     async def store_review(self, review: SecurityReview, project_id: str) -> None:
@@ -117,21 +132,20 @@ class SAGEMemoryAdapter(MemoryService):
                     f"Code: {snippet}"
                 )
 
-                confidence = _SEVERITY_CONFIDENCE.get(finding.severity, 0.70)
-
                 # Generate embedding so vector search works on recall
                 embedding = await self._get_client().embed(summary)
                 await self._get_client().propose(
                     content=summary,
                     memory_type=MemoryType.observation,
                     domain_tag="falconeye-findings",
-                    confidence=confidence,
+                    confidence=_DEFAULT_FINDING_CONFIDENCE,
                     embedding=embedding,
                 )
                 stored += 1
-                # Small delay between proposals to avoid overwhelming
-                # single-node BFT consensus
-                await asyncio.sleep(0.5)
+                # Throttle between proposals to avoid overwhelming
+                # single-node BFT consensus (configurable, 0 for multi-node)
+                if self._store_throttle > 0:
+                    await asyncio.sleep(self._store_throttle)
             except Exception as e:
                 self.logger.warning(
                     f"Failed to store finding in SAGE: {e}",
@@ -391,6 +405,7 @@ class SAGEMemoryAdapter(MemoryService):
         """
         self._base_url = base_url
         self._client = None
+        self._client_loop = None
         self.logger.info(
             "SAGE adapter reconfigured",
             extra={"base_url": base_url},

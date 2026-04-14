@@ -178,6 +178,7 @@ class DIContainer:
                     base_url=config.sage.base_url,
                     identity_path=config.sage.identity_path,
                     timeout=config.sage.timeout,
+                    store_throttle_seconds=config.sage.store_throttle_seconds,
                 )
                 sage_logger.info(
                     "SAGE memory adapter initialized (health checked on first use)",
