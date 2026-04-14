@@ -9,6 +9,7 @@ from ..config.config_models import FalconEyeConfig
 from ..llm_providers.ollama_adapter import OllamaLLMAdapter
 from ...domain.services.llm_service import LLMService
 from ..resilience import RetryConfig, CircuitBreakerConfig
+from ...domain.services.memory_service import MemoryService
 from ..vector_stores.chroma_adapter import ChromaVectorStoreAdapter
 from ..persistence.chroma_metadata_repository import ChromaMetadataRepository
 from ..registry.chroma_registry_adapter import ChromaIndexRegistryAdapter
@@ -54,19 +55,28 @@ class DIContainer:
     index_handler: IndexCodebaseHandler
     review_file_handler: ReviewFileHandler
 
+    # Optional Services
+    memory_service: Optional[MemoryService] = None
+
     @classmethod
-    def create(cls, config_path: Optional[str] = None, backend_override: Optional[str] = None) -> "DIContainer":
+    def create(cls, config_path: Optional[str] = None, backend_override: Optional[str] = None, sage_override: bool = False) -> "DIContainer":
         """
         Create and wire all dependencies.
 
         Args:
             config_path: Optional path to configuration file
+            backend_override: Optional LLM backend override
+            sage_override: Force-enable SAGE persistent memory
 
         Returns:
             DIContainer with all dependencies wired
         """
         # Load configuration
         config = ConfigLoader.load(config_path)
+
+        # Apply SAGE override from CLI flag
+        if sage_override:
+            config.sage.enabled = True
 
         # Create data directories if they don't exist
         Path(config.vector_store.persist_directory).mkdir(parents=True, exist_ok=True)
@@ -154,6 +164,33 @@ class DIContainer:
         project_identifier = ProjectIdentifier()
         checksum_service = ChecksumService()
 
+        # Optional: SAGE persistent memory
+        # Health is checked lazily on first use via SAGEMemoryAdapter.health_check()
+        # to avoid blocking the sync DI factory with a network call.
+        memory_service = None
+        if config.sage.enabled:
+            try:
+                from ..memory.sage_adapter import SAGEMemoryAdapter
+                from ..logging import FalconEyeLogger
+
+                sage_logger = FalconEyeLogger.get_instance()
+                memory_service = SAGEMemoryAdapter(
+                    base_url=config.sage.base_url,
+                    identity_path=config.sage.identity_path,
+                    timeout=config.sage.timeout,
+                    store_throttle_seconds=config.sage.store_throttle_seconds,
+                )
+                sage_logger.info(
+                    "SAGE memory adapter initialized (health checked on first use)",
+                    extra={"base_url": config.sage.base_url},
+                )
+            except Exception as e:
+                from ..logging import FalconEyeLogger
+
+                sage_logger = FalconEyeLogger.get_instance()
+                sage_logger.warning(f"Failed to initialize SAGE memory: {e}")
+                memory_service = None
+
         # Application handlers - Use cases
         index_handler = IndexCodebaseHandler(
             vector_store=vector_store,
@@ -169,6 +206,9 @@ class DIContainer:
         review_file_handler = ReviewFileHandler(
             security_analyzer=security_analyzer,
             context_assembler=context_assembler,
+            memory_service=memory_service,
+            recall_context=config.sage.recall_context,
+            store_findings=config.sage.store_findings,
         )
 
         return cls(
@@ -179,6 +219,7 @@ class DIContainer:
             index_registry=index_registry,
             ast_analyzer=ast_analyzer,
             plugin_registry=plugin_registry,
+            memory_service=memory_service,
             security_analyzer=security_analyzer,
             context_assembler=context_assembler,
             language_detector=language_detector,

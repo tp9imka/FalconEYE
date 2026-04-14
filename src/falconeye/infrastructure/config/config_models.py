@@ -1,6 +1,6 @@
 """Configuration data models using Pydantic."""
 
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
@@ -340,6 +340,20 @@ class LoggingConfig(BaseModel):
         return v
 
 
+class SAGEConfig(BaseModel):
+    """SAGE persistent memory configuration."""
+    enabled: bool = Field(default=False, description="Enable SAGE memory integration")
+    base_url: str = Field(default="http://localhost:8090", description="SAGE API base URL")
+    identity_path: Optional[str] = Field(default=None, description="Path to SAGE agent key file")
+    timeout: float = Field(default=15.0, ge=1.0, le=120.0, description="API request timeout")
+    store_findings: bool = Field(default=True, description="Store scan findings in SAGE")
+    recall_context: bool = Field(default=True, description="Recall historical context before analysis")
+    store_throttle_seconds: float = Field(
+        default=0.5, ge=0.0, le=10.0,
+        description="Delay between memory proposals (0 for multi-node deployments)",
+    )
+
+
 class FalconEyeConfig(BaseModel):
     """Complete FalconEYE configuration."""
     model_config = ConfigDict(
@@ -357,6 +371,7 @@ class FalconEyeConfig(BaseModel):
     file_discovery: FileDiscoveryConfig = Field(default_factory=FileDiscoveryConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    sage: SAGEConfig = Field(default_factory=SAGEConfig)
 
     def to_yaml(self) -> str:
         """Convert configuration to YAML string."""

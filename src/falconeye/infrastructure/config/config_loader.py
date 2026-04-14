@@ -111,7 +111,7 @@ class ConfigLoader:
     KNOWN_CONFIG_SECTIONS = {
         "llm", "vector_store", "metadata", "index_registry",
         "chunking", "analysis", "languages", "file_discovery",
-        "output", "logging",
+        "output", "logging", "sage",
     }
 
     @staticmethod

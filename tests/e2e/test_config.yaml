@@ -1,0 +1,28 @@
+# E2E test configuration
+# Uses local Ollama for analysis + Docker SAGE for memory
+
+llm:
+  provider: ollama
+  model:
+    analysis: gemma3:12b
+    embedding: embeddinggemma:300m
+  base_url: http://localhost:11435
+  timeout: 120
+
+sage:
+  enabled: true
+  base_url: http://localhost:8090
+  timeout: 15
+  store_findings: true
+  recall_context: true
+
+analysis:
+  top_k_context: 3
+  validate_findings: false
+  batch_size: 5
+
+output:
+  default_format: json
+  color: true
+  verbose: false
+  save_to_file: false
