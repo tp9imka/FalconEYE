@@ -641,26 +641,41 @@ class IndexCodebaseHandler:
         lines = content.splitlines(keepends=True)
         total_lines = len(lines)
 
-        # Adaptive chunking for large files
-        # For files > 1000 lines, increase chunk size to reduce chunk count
-        # This keeps analysis manageable while maintaining context
-        if total_lines > 1000:
-            # Scale chunk size: aim for ~50-75 chunks maximum for very large files
-            adaptive_chunk_size = max(chunk_size, min(200, total_lines // 50))
-            adaptive_overlap = min(overlap, adaptive_chunk_size // 5)  # Keep overlap proportional
+        # Adaptive chunking for large files.
+        # For files above ADAPTIVE_THRESHOLD_LINES, scale chunk size up (capped at
+        # MAX_ADAPTIVE_CHUNK_SIZE, which mirrors chunking.max_chunk_size in
+        # config.yaml) so the number of chunks — and therefore the number of LLM
+        # calls — grows sub-linearly with file size.
+        #
+        # Target: ~50 chunks for moderately large files (up to ~10k lines). For
+        # very large files (>10k lines) the chunk size is capped, so chunk count
+        # continues to grow but at a much slower rate than with the default size.
+        ADAPTIVE_THRESHOLD_LINES = 1000
+        MAX_ADAPTIVE_CHUNK_SIZE = 200
+        TARGET_CHUNK_COUNT = 50
 
-            self.logger.info(
-                "Using adaptive chunking for large file",
-                extra={
-                    "file_path": file_path,
-                    "total_lines": total_lines,
-                    "original_chunk_size": chunk_size,
-                    "adaptive_chunk_size": adaptive_chunk_size,
-                    "adaptive_overlap": adaptive_overlap,
-                }
-            )
-            chunk_size = adaptive_chunk_size
-            overlap = adaptive_overlap
+        if total_lines > ADAPTIVE_THRESHOLD_LINES:
+            target_size = total_lines // TARGET_CHUNK_COUNT
+            adaptive_chunk_size = max(chunk_size, min(MAX_ADAPTIVE_CHUNK_SIZE, target_size))
+
+            if adaptive_chunk_size != chunk_size:
+                # Scale overlap with chunk size (20%) while honoring the caller's
+                # minimum; this preserves cross-chunk context for larger windows.
+                adaptive_overlap = max(overlap, adaptive_chunk_size // 5)
+
+                self.logger.info(
+                    "Using adaptive chunking for large file",
+                    extra={
+                        "file_path": file_path,
+                        "total_lines": total_lines,
+                        "original_chunk_size": chunk_size,
+                        "adaptive_chunk_size": adaptive_chunk_size,
+                        "original_overlap": overlap,
+                        "adaptive_overlap": adaptive_overlap,
+                    }
+                )
+                chunk_size = adaptive_chunk_size
+                overlap = adaptive_overlap
 
         chunks = []
         start = 0

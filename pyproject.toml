@@ -8,7 +8,7 @@ keywords = ["security", "llm", "code-review", "ollama"]
 requires-python = ">=3.12.0"  # Minimum: 3.12+ | Recommended: Python 3.12
 dependencies = [
     # ChromaDB with compatible versions to avoid onnxruntime conflicts
-    "chromadb>=1.0.0,<1.1.0",
+    "chromadb>=1.0.13,<1.1.0",
     # Pin numpy to avoid compatibility issues with onnxruntime
     "numpy>=1.26.0,<2.3.0",
     # onnxruntime - let chromadb manage this, but specify bounds
