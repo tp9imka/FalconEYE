@@ -428,6 +428,20 @@ def review_command(
     # Create DI container
     container = DIContainer.create(config_path, backend_override=backend, sage_override=sage)
 
+    # Pre-scan SAGE connectivity probe — gives early feedback instead of
+    # failing silently mid-scan on the first recall attempt.
+    if container.memory_service:
+        try:
+            sage_ok = asyncio.run(container.memory_service.health_check())
+            if sage_ok:
+                console.print("[green]SAGE memory service connected[/green]")
+            else:
+                console.print("[yellow]SAGE memory service unreachable — scanning without persistent memory[/yellow]")
+                container.memory_service = None
+        except Exception:
+            console.print("[yellow]SAGE memory service unreachable — scanning without persistent memory[/yellow]")
+            container.memory_service = None
+
     # Configure logger verbosity
     _configure_logger_verbosity(container, verbose)
 

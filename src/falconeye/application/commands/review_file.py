@@ -33,6 +33,11 @@ def _sanitize_memory_content(text: str) -> str:
     )
     # Remove XML-style role tags
     text = re.sub(r'(?i)</?(?:system|assistant|user|human|instruction)[^>]*>', '', text)
+    # Remove natural-language imperative injection attempts
+    text = re.sub(
+        r'(?i)^(ignore|disregard|forget|override|instead|do not follow|skip|bypass)\b[^\n]{0,200}',
+        '', text, flags=re.MULTILINE,
+    )
     # Truncate individual entries to a reasonable length
     if len(text) > 500:
         text = text[:500] + "..."

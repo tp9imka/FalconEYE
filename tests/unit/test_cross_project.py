@@ -470,7 +470,7 @@ class TestCrossProjectContextInjection:
         # Verify the context passed to analyzer includes cross-project patterns
         ctx_used = mock_analyzer.analyze_code.call_args.kwargs["context"]
         assert ctx_used.related_docs is not None
-        assert "Cross-Project Security Patterns" in ctx_used.related_docs
+        assert "CROSS-PROJECT PATTERNS" in ctx_used.related_docs
         assert "SQL injection dominant" in ctx_used.related_docs
         assert "85%" in ctx_used.related_docs
 
@@ -513,7 +513,7 @@ class TestCrossProjectContextInjection:
         # Original docs preserved
         assert "old finding" in ctx_used.related_docs
         # Cross-project appended
-        assert "Cross-Project Security Patterns" in ctx_used.related_docs
+        assert "CROSS-PROJECT PATTERNS" in ctx_used.related_docs
         assert "Cross-project pattern ABC" in ctx_used.related_docs
 
     @patch("falconeye.application.commands.review_file.FalconEyeLogger")
@@ -700,6 +700,9 @@ class TestAbstractPortCompleteness:
 
             async def health_check(self):
                 return True
+
+            def reconfigure(self, base_url):
+                pass
 
         impl = FullImpl()
         assert isinstance(impl, MemoryService)

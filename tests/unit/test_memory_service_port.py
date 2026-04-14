@@ -115,6 +115,9 @@ class TestMemoryServiceCompleteSubclass:
             async def health_check(self):
                 return True
 
+            def reconfigure(self, base_url):
+                pass
+
         impl = FullImpl()
         assert isinstance(impl, MemoryService)
 
@@ -141,6 +144,9 @@ class TestMemoryServiceCompleteSubclass:
 
             async def health_check(self):
                 return True
+
+            def reconfigure(self, base_url):
+                pass
 
         impl = FullImpl()
 

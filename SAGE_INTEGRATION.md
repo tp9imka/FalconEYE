@@ -157,9 +157,10 @@ Check if the SAGE container is running:
 docker compose -f docker-compose.sage.yml ps
 ```
 
-**"Connection refused on port 8080"**
-SAGE may still be starting. Wait for the healthcheck to pass:
+**"SAGE memory service unreachable — scanning without persistent memory"**
+FalconEYE probes SAGE connectivity before scanning. If SAGE is unreachable, the scan continues without persistent memory. Check that the SAGE container is running and healthy:
 ```bash
+docker compose -f docker-compose.sage.yml ps
 docker compose -f docker-compose.sage.yml logs sage
 ```
 
