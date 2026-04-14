@@ -1075,8 +1075,7 @@ def feedback_command(
 
     # Override SAGE URL if provided
     if sage_url and container.memory_service:
-        container.memory_service._base_url = sage_url
-        container.memory_service._client = None  # Force reconnect
+        container.memory_service.reconfigure(sage_url)
 
     if not container.memory_service:
         console.print("[red]SAGE memory service is not available.[/red]")

@@ -6,7 +6,7 @@ llm:
   model:
     analysis: gemma3:12b
     embedding: embeddinggemma:300m
-  base_url: http://localhost:11434
+  base_url: http://localhost:11435
   timeout: 120
 
 sage:

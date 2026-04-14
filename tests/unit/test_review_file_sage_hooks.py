@@ -145,7 +145,7 @@ class TestPreAnalysisRecall:
         analyze_call = mock_analyzer.analyze_code.call_args
         ctx_used = analyze_call.kwargs["context"]
         assert ctx_used.related_docs is not None
-        assert "Historical Security Findings" in ctx_used.related_docs
+        assert "HISTORICAL FINDINGS" in ctx_used.related_docs
         assert "88%" in ctx_used.related_docs  # 0.88 formatted as percentage
 
     @patch("falconeye.application.commands.review_file.FalconEyeLogger")
@@ -182,7 +182,7 @@ class TestPreAnalysisRecall:
 
         ctx_used = mock_analyzer.analyze_code.call_args.kwargs["context"]
         assert "Security policy..." in ctx_used.related_docs
-        assert "Historical Security Findings" in ctx_used.related_docs
+        assert "HISTORICAL FINDINGS" in ctx_used.related_docs
 
     @patch("falconeye.application.commands.review_file.FalconEyeLogger")
     async def test_pre_analysis_recall_empty_results(self, mock_logger_cls, tmp_path):

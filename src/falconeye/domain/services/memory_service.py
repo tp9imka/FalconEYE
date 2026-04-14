@@ -65,3 +65,9 @@ class MemoryService(ABC):
     @abstractmethod
     async def health_check(self) -> bool:
         """Check if the memory service is available."""
+
+    def reconfigure(self, base_url: str) -> None:
+        """Reconfigure the service with a new base URL.
+
+        Subclasses should override to reset internal clients.
+        """

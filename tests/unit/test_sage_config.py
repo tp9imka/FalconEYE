@@ -16,7 +16,7 @@ class TestSAGEConfigDefaults:
 
     def test_default_base_url(self):
         config = SAGEConfig()
-        assert config.base_url == "http://localhost:8080"
+        assert config.base_url == "http://localhost:8090"
 
     def test_default_identity_path_is_none(self):
         config = SAGEConfig()
@@ -142,13 +142,13 @@ class TestSAGEConfigFromDict:
         data = {"enabled": True}
         config = SAGEConfig(**data)
         assert config.enabled is True
-        assert config.base_url == "http://localhost:8080"
+        assert config.base_url == "http://localhost:8090"
         assert config.timeout == 15.0
 
     def test_from_empty_dict(self):
         config = SAGEConfig(**{})
         assert config.enabled is False
-        assert config.base_url == "http://localhost:8080"
+        assert config.base_url == "http://localhost:8090"
 
     def test_from_dict_integer_timeout_coerced(self):
         """Integer timeout from YAML should be coerced to float."""
@@ -188,7 +188,7 @@ class TestSAGEConfigInFalconEyeConfig:
         dumped = config.model_dump()
         assert "sage" in dumped
         assert dumped["sage"]["enabled"] is False
-        assert dumped["sage"]["base_url"] == "http://localhost:8080"
+        assert dumped["sage"]["base_url"] == "http://localhost:8090"
 
     def test_falconeye_config_sage_validation_propagates(self):
         """Invalid sage timeout should be caught at FalconEyeConfig level."""

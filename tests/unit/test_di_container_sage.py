@@ -1,10 +1,8 @@
 """Unit tests for SAGE wiring in the DI container."""
 
-import asyncio
-import sys
 import pytest
 from contextlib import ExitStack
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 
 from falconeye.infrastructure.config.config_models import FalconEyeConfig, SAGEConfig
 from falconeye.infrastructure.config.config_loader import ConfigLoader
@@ -28,7 +26,6 @@ _INFRA_TARGETS = [
 
 def _patched_create(
     config: FalconEyeConfig,
-    health_check_result: bool = False,
     sage_import_fails: bool = False,
     **create_kwargs,
 ):
@@ -37,7 +34,6 @@ def _patched_create(
 
     Args:
         config: The FalconEyeConfig to use
-        health_check_result: What asyncio.run(health_check()) returns
         sage_import_fails: If True, simulate sage_sdk not being installed
         **create_kwargs: Extra kwargs passed to DIContainer.create()
 
@@ -64,18 +60,6 @@ def _patched_create(
                 return original_import(name, *args, **kwargs)
 
             stack.enter_context(patch("builtins.__import__", side_effect=_mock_import))
-        elif sage_will_be_enabled:
-            # Mock the sync httpx.get health check used by the DI container
-            mock_response = MagicMock()
-            if health_check_result:
-                mock_response.status_code = 200
-                mock_response.json.return_value = {"status": "healthy"}
-            else:
-                mock_response.status_code = 503
-                mock_response.json.return_value = {}
-            stack.enter_context(
-                patch("httpx.get", return_value=mock_response)
-            )
 
         from falconeye.infrastructure.di.container import DIContainer
         return DIContainer.create(**create_kwargs)
@@ -102,24 +86,15 @@ class TestContainerWithoutSAGE:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-class TestContainerWithSAGEUnavailable:
+class TestContainerWithSAGEEnabled:
 
-    def test_container_sage_health_check_false(self):
+    def test_container_sage_enabled_creates_memory_service(self):
         """
-        When sage.enabled=True but health_check returns False,
-        memory_service should gracefully be None.
+        When sage.enabled=True, memory_service should be set.
+        Health is checked lazily on first use, not at container creation.
         """
         config = FalconEyeConfig(sage=SAGEConfig(enabled=True))
-        container = _patched_create(config, health_check_result=False)
-        assert container.memory_service is None
-
-    def test_container_sage_health_check_true(self):
-        """
-        When sage.enabled=True and health_check returns True,
-        memory_service should be set (not None).
-        """
-        config = FalconEyeConfig(sage=SAGEConfig(enabled=True))
-        container = _patched_create(config, health_check_result=True)
+        container = _patched_create(config)
         assert container.memory_service is not None
 
     def test_container_sage_import_error_graceful(self):
@@ -164,16 +139,12 @@ class TestSAGEOverrideFlag:
         config = FalconEyeConfig()
         assert config.sage.enabled is False
 
-        # health_check_result=False so memory_service ends up None,
-        # but we can still verify the flag flipped enabled to True
-        container = _patched_create(
-            config, health_check_result=False, sage_override=True
-        )
+        container = _patched_create(config, sage_override=True)
 
         # The flag should have flipped config.sage.enabled
         assert config.sage.enabled is True
-        # memory_service is None because health check returned False
-        assert container.memory_service is None
+        # memory_service should be set (health checked lazily on first use)
+        assert container.memory_service is not None
 
     def test_sage_override_false_does_not_enable(self):
         """sage_override=False should not change sage.enabled."""

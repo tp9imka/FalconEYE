@@ -165,6 +165,8 @@ class DIContainer:
         checksum_service = ChecksumService()
 
         # Optional: SAGE persistent memory
+        # Health is checked lazily on first use via SAGEMemoryAdapter.health_check()
+        # to avoid blocking the sync DI factory with a network call.
         memory_service = None
         if config.sage.enabled:
             try:
@@ -177,20 +179,10 @@ class DIContainer:
                     identity_path=config.sage.identity_path,
                     timeout=config.sage.timeout,
                 )
-                # Sync health check to avoid polluting the async event loop
-                # that will be used later during analysis
-                import httpx
-                resp = httpx.get(
-                    f"{config.sage.base_url.rstrip('/')}/health",
-                    timeout=config.sage.timeout,
+                sage_logger.info(
+                    "SAGE memory adapter initialized (health checked on first use)",
+                    extra={"base_url": config.sage.base_url},
                 )
-                if resp.status_code == 200 and "status" in resp.json():
-                    sage_logger.info("SAGE memory service connected")
-                else:
-                    sage_logger.warning(
-                        "SAGE memory service unavailable — continuing without persistent memory"
-                    )
-                    memory_service = None
             except Exception as e:
                 from ..logging import FalconEyeLogger
 
@@ -214,6 +206,8 @@ class DIContainer:
             security_analyzer=security_analyzer,
             context_assembler=context_assembler,
             memory_service=memory_service,
+            recall_context=config.sage.recall_context,
+            store_findings=config.sage.store_findings,
         )
 
         return cls(

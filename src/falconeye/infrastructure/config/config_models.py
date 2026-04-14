@@ -343,7 +343,7 @@ class LoggingConfig(BaseModel):
 class SAGEConfig(BaseModel):
     """SAGE persistent memory configuration."""
     enabled: bool = Field(default=False, description="Enable SAGE memory integration")
-    base_url: str = Field(default="http://localhost:8080", description="SAGE API base URL")
+    base_url: str = Field(default="http://localhost:8090", description="SAGE API base URL")
     identity_path: Optional[str] = Field(default=None, description="Path to SAGE agent key file")
     timeout: float = Field(default=15.0, ge=1.0, le=120.0, description="API request timeout")
     store_findings: bool = Field(default=True, description="Store scan findings in SAGE")

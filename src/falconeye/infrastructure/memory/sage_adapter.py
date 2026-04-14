@@ -40,7 +40,7 @@ class SAGEMemoryAdapter(MemoryService):
 
     def __init__(
         self,
-        base_url: str = "http://localhost:8080",
+        base_url: str = "http://localhost:8090",
         identity_path: Optional[str] = None,
         timeout: float = 15.0,
     ):
@@ -383,3 +383,15 @@ class SAGEMemoryAdapter(MemoryService):
         except Exception as e:
             self.logger.warning(f"SAGE health check failed: {e}")
             return False
+
+    def reconfigure(self, base_url: str) -> None:
+        """Reconfigure the adapter with a new SAGE base URL.
+
+        Resets the internal client so the next call connects to the new URL.
+        """
+        self._base_url = base_url
+        self._client = None
+        self.logger.info(
+            "SAGE adapter reconfigured",
+            extra={"base_url": base_url},
+        )

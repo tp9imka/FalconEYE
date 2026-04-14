@@ -46,7 +46,7 @@ mlx = [
 ]
 
 sage = [
-  "sage-agent-sdk>=5.4.0",
+  "sage-agent-sdk>=6.0.0,<7.0.0",
 ]
 
 ollama = [
