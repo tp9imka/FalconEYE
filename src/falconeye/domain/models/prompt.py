@@ -145,32 +145,44 @@ class PromptContext:
         Add line numbers to code for AI to reference.
 
         This allows the AI to provide accurate line_start and line_end
-        in its findings. For very large files, truncates to prevent
-        exceeding LLM context windows.
+        in its findings. For very large files, keeps the head and tail of the
+        file (with a truncation marker in the middle) so both ends remain
+        visible to the model rather than dropping the tail entirely.
 
         Args:
             code: Code snippet
-            max_lines: Maximum lines to include (truncates if exceeded)
+            max_lines: Maximum lines to include (head + tail combined when
+                       truncation occurs)
 
         Returns:
-            Code with line numbers prepended to each line
+            Code with line numbers prepended to each line. Line numbers reflect
+            the original position in ``code`` so findings reference real lines
+            even across the truncation boundary.
         """
         lines = code.splitlines()
+        total = len(lines)
 
-        # Handle very large files by truncating with a note
-        if len(lines) > max_lines:
-            truncated_count = len(lines) - max_lines
-            lines = lines[:max_lines]
-            truncation_note = f"\n... [Truncated {truncated_count} lines for context window management] ...\n"
-        else:
-            truncation_note = ""
+        if total <= max_lines:
+            numbered_lines = [f"{i:4d} | {line}" for i, line in enumerate(lines, start=1)]
+            return "\n".join(numbered_lines)
 
-        numbered_lines = []
-        for i, line in enumerate(lines, start=1):
-            numbered_lines.append(f"{i:4d} | {line}")
+        # Head/tail split: keep the first half and last half of the budget
+        # so the model sees both ends of the file.
+        head_count = max_lines // 2
+        tail_count = max_lines - head_count
+        tail_start = total - tail_count  # 1-based line number where the tail begins
+        truncated_count = total - max_lines
 
-        result = "\n".join(numbered_lines)
-        if truncation_note:
-            result += truncation_note
+        numbered_lines = [
+            f"{i:4d} | {line}" for i, line in enumerate(lines[:head_count], start=1)
+        ]
+        numbered_lines.append(
+            f"... [Truncated {truncated_count} lines "
+            f"({head_count + 1}-{tail_start}) for context window management] ..."
+        )
+        numbered_lines.extend(
+            f"{i:4d} | {line}"
+            for i, line in enumerate(lines[-tail_count:], start=tail_start + 1)
+        )
 
-        return result
+        return "\n".join(numbered_lines)
