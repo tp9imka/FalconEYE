@@ -114,6 +114,10 @@ FalconEYE follows a multi-stage analysis pipeline:
 ollama pull qwen3-coder:30b
 ollama pull embeddinggemma:300m
 
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
 # Install FalconEYE
 pip install -e .
 ```
