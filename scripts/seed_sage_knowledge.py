@@ -471,21 +471,21 @@ def collect_all_knowledge() -> tuple[list[dict], dict[str, int]]:
     print(f"    -> {len(severity)} memories (guidelines, 5 levels, 5 anti-patterns)")
 
     # [2/6] Language system prompts
-    print("  [2/6] Language system prompts (9 languages)...")
+    print("  [2/6] Language system prompts (10 languages)...")
     sys_prompts = get_system_prompt_knowledge()
     entries.extend(sys_prompts)
     section_counts["system_prompts"] = len(sys_prompts)
     print(f"    -> {len(sys_prompts)} memories")
 
     # [3/6] Language validation prompts
-    print("  [3/6] Language validation prompts (9 languages)...")
+    print("  [3/6] Language validation prompts (10 languages)...")
     val_prompts = get_validation_prompt_knowledge()
     entries.extend(val_prompts)
     section_counts["validation_prompts"] = len(val_prompts)
     print(f"    -> {len(val_prompts)} memories")
 
     # [4/6] Vulnerability taxonomies & frameworks
-    print("  [4/6] Vulnerability taxonomies & frameworks (9 languages)...")
+    print("  [4/6] Vulnerability taxonomies & frameworks (10 languages)...")
     taxonomy = get_taxonomy_and_framework_knowledge()
     entries.extend(taxonomy)
     section_counts["taxonomy_frameworks"] = len(taxonomy)

@@ -70,6 +70,7 @@ languages:
     - java
     - dart
     - php
+    - csharp
 
 # File Discovery
 file_discovery:

@@ -249,7 +249,7 @@ The `info` command shows whether your system supports MLX, including Apple Silic
 
 ## Supported Languages
 
-FalconEYE analyzes code in 10 languages with language-specific security knowledge:
+FalconEYE analyzes code in 11 languages with language-specific security knowledge:
 
 | Language | Extensions | Key Vulnerability Categories |
 |----------|-----------|------------------------------|
@@ -259,6 +259,7 @@ FalconEYE analyzes code in 10 languages with language-specific security knowledg
 | **Rust** | `.rs` | Unsafe blocks, FFI issues, integer overflow, Actix/Axum/Rocket issues |
 | **C / C++** | `.c`, `.cpp`, `.cc`, `.cxx`, `.h`, `.hpp`, `.hxx` | Buffer overflow, format strings, use-after-free, memory corruption |
 | **Java** | `.java` | SQL injection, deserialization, XXE, Spring/Hibernate issues |
+| **C#** | `.cs`, `.csx`, `.cshtml`, `.razor` | SQL injection, BinaryFormatter deserialization, XXE, mass assignment, ASP.NET Core / EF Core issues |
 | **PHP** | `.php`, `.phtml`, `.php3`-`.php5`, `.phps` | SQL injection, type juggling, RCE, Laravel/WordPress issues |
 | **Ruby** | `.rb`, `.rake`, `.gemspec`, `Gemfile`, `Rakefile` | YAML deserialization, mass assignment, eval/send injection, Rails issues |
 | **Dart** | `.dart` | Insecure HTTP, hardcoded secrets, path traversal, Flutter issues |

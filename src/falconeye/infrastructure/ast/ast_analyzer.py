@@ -45,6 +45,10 @@ class EnhancedASTAnalyzer:
         '.jsx': 'javascript',
         '.ts': 'typescript',
         '.tsx': 'typescript',
+        '.cs': 'csharp',
+        '.csx': 'csharp',
+        '.cshtml': 'csharp',
+        '.razor': 'csharp',
     }
 
     def __init__(self):
@@ -115,6 +119,8 @@ class EnhancedASTAnalyzer:
             self._analyze_dart(root, content, metadata)
         elif language == "php":
             self._analyze_php(root, content, metadata)
+        elif language == "csharp":
+            self._analyze_csharp(root, content, metadata)
 
         return metadata
 
@@ -355,6 +361,58 @@ class EnhancedASTAnalyzer:
                 metadata.functions.append(FunctionInfo(
                     name=name_node.text.decode("utf8"),
                     line=func_node.start_point[0] + 1,
+                ))
+
+    def _analyze_csharp(self, root, content: str, metadata: StructuralMetadata):
+        """Analyze C# code."""
+        # Extract methods
+        methods = self._find_nodes_by_type(root, "method_declaration")
+        for method_node in methods:
+            name_node = method_node.child_by_field_name("name")
+            if name_node:
+                metadata.functions.append(FunctionInfo(
+                    name=name_node.text.decode("utf8"),
+                    line=method_node.start_point[0] + 1,
+                ))
+
+        # Extract local functions
+        local_funcs = self._find_nodes_by_type(root, "local_function_statement")
+        for func_node in local_funcs:
+            name_node = func_node.child_by_field_name("name")
+            if name_node:
+                metadata.functions.append(FunctionInfo(
+                    name=name_node.text.decode("utf8"),
+                    line=func_node.start_point[0] + 1,
+                ))
+
+        # Extract using directives (imports)
+        usings = self._find_nodes_by_type(root, "using_directive")
+        for using_node in usings:
+            statement = using_node.text.decode("utf8")
+            metadata.imports.append(ImportInfo(
+                statement=statement,
+                line=using_node.start_point[0] + 1,
+                module="",
+            ))
+
+        # Extract invocations (calls)
+        calls = self._find_nodes_by_type(root, "invocation_expression")
+        for call_node in calls:
+            func_node = call_node.child_by_field_name("function")
+            if func_node:
+                metadata.calls.append(CallInfo(
+                    function=func_node.text.decode("utf8"),
+                    line=call_node.start_point[0] + 1,
+                ))
+
+        # Extract classes
+        classes = self._find_nodes_by_type(root, "class_declaration")
+        for class_node in classes:
+            name_node = class_node.child_by_field_name("name")
+            if name_node:
+                metadata.classes.append(ClassInfo(
+                    name=name_node.text.decode("utf8"),
+                    line=class_node.start_point[0] + 1,
                 ))
 
     def _find_nodes_by_type(self, root, node_type: str) -> List:

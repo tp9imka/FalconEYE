@@ -25,9 +25,10 @@ from seed_sage_knowledge import (
 
 REQUIRED_FIELDS = {"content", "domain", "memory_type", "confidence", "description"}
 
-# All 9 languages loaded by the plugin registry
+# All 10 languages loaded by the plugin registry
 EXPECTED_LANGUAGES = {
     "python", "javascript", "go", "rust", "c_cpp", "java", "dart", "php", "ruby",
+    "csharp",
 }
 
 

@@ -11,6 +11,7 @@ from .java_plugin import JavaPlugin
 from .dart_plugin import DartPlugin
 from .php_plugin import PHPPlugin
 from .ruby_plugin import RubyPlugin
+from .csharp_plugin import CSharpPlugin
 
 
 class PluginRegistry:
@@ -149,6 +150,9 @@ class PluginRegistry:
 
         # Register Ruby plugin
         self.register(RubyPlugin())
+
+        # Register C# plugin
+        self.register(CSharpPlugin())
 
     def __repr__(self) -> str:
         """String representation."""

@@ -27,6 +27,7 @@ class LanguageDetector:
         "javascript": [".js", ".jsx", ".mjs", ".cjs"],
         "typescript": [".ts", ".tsx"],
         "ruby": [".rb", ".rake"],
+        "csharp": [".cs", ".csx", ".cshtml", ".razor"],
     }
 
     # Extensions to language mapping (reverse)
