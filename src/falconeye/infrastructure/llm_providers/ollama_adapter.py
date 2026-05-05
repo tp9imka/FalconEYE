@@ -1,8 +1,9 @@
 """Ollama LLM adapter implementation."""
 
 import asyncio
-from typing import List, Optional, Callable
 import time
+from typing import Callable, List, Optional
+
 import ollama
 from ...domain.services.llm_service import LLMService
 from ...domain.models.prompt import PromptContext
@@ -170,6 +171,39 @@ class OllamaLLMAdapter(LLMService):
     # embeddinggemma:300m and similar small embedding models have a ~2048 token
     # context window (~8192 chars at 4 chars/token). Truncate before sending.
     _MAX_EMBEDDING_CHARS: int = 8000
+    _MIN_EMBEDDING_CHARS: int = 512
+
+    def _truncate_embedding_text(self, text: str, limit: int) -> str:
+        """Trim embedding input to the requested size and log the change."""
+        if len(text) <= limit:
+            return text
+
+        self.logger.warning(
+            "Truncating text for embedding",
+            extra={"original_len": len(text), "truncated_len": limit},
+        )
+        return text[:limit]
+
+    @staticmethod
+    def _is_context_length_error(error: Exception) -> bool:
+        """Detect Ollama errors caused by embedding input exceeding context."""
+        if not isinstance(error, ollama.ResponseError):
+            return False
+
+        error_message = str(error).lower()
+        return "input length exceeds the context length" in error_message
+
+    async def _request_embedding(self, text: str) -> List[float]:
+        """Request a single embedding from Ollama."""
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: self.client.embeddings(
+                model=self.embedding_model,
+                prompt=text,
+            )
+        )
+        return response["embedding"]
 
     async def generate_embedding(self, text: str) -> List[float]:
         """
@@ -181,21 +215,38 @@ class OllamaLLMAdapter(LLMService):
         Returns:
             Embedding vector
         """
-        if len(text) > self._MAX_EMBEDDING_CHARS:
-            self.logger.warning(
-                "Truncating text for embedding (exceeds model context)",
-                extra={"original_len": len(text), "truncated_len": self._MAX_EMBEDDING_CHARS},
-            )
-            text = text[:self._MAX_EMBEDDING_CHARS]
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: self.client.embeddings(
-                model=self.embedding_model,
-                prompt=text,
-            )
-        )
-        return response["embedding"]
+        current_limit = min(len(text), self._MAX_EMBEDDING_CHARS)
+        text = self._truncate_embedding_text(text, current_limit)
+
+        while True:
+            try:
+                return await self._request_embedding(text)
+            except Exception as error:
+                if not self._is_context_length_error(error):
+                    raise
+
+                if current_limit <= self._MIN_EMBEDDING_CHARS:
+                    self.logger.error(
+                        "Embedding input exceeds context even at minimum truncation",
+                        extra={
+                            "text_len": len(text),
+                            "min_limit": self._MIN_EMBEDDING_CHARS,
+                            "embedding_model": self.embedding_model,
+                        },
+                    )
+                    raise
+
+                next_limit = max(self._MIN_EMBEDDING_CHARS, current_limit // 2)
+                self.logger.warning(
+                    "Embedding input exceeded context length, retrying with smaller chunk",
+                    extra={
+                        "embedding_model": self.embedding_model,
+                        "previous_limit": current_limit,
+                        "next_limit": next_limit,
+                    },
+                )
+                current_limit = next_limit
+                text = self._truncate_embedding_text(text, current_limit)
 
     async def generate_embeddings_batch(
         self,
